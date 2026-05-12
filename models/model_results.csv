@@ -1,5 +1,0 @@
-model,accuracy
-Logistic Regression,0.865
-Decision Tree,0.785
-Random Forest,0.835
-Neural Network,0.855
