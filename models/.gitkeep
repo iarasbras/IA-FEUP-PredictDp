@@ -1,0 +1,2 @@
+# Keep the models/ directory tracked by git even when empty.
+# Model artifacts are ignored via .gitignore; this file preserves the folder.

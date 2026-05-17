@@ -1,42 +1,64 @@
 # Student Dropout Predictor
 
-This project is a proof-of-concept machine learning system for predicting student dropout risk.
+A machine learning model to predict student dropout risk (Low, Medium, High) based on school indicators.
 
-## Goal
+## Problem
 
-The goal is to estimate whether a student has a Low, Medium, or High dropout risk based only on school-based indicators.
+Predict dropout risk using features: attendance, grades, failed/completed courses, assignment completion, high school average, platform logins, and district.
 
-## Inputs
+## Solution
 
-- Attendance percentage
-- Average grade
-- Failed courses
-- Completed courses
-- Assignment completion percentage
-- District of origin
-- High school average
-- Moodle / platform logins per week
+Supervised multiclass classifier comparing 4 algorithms:
+- Logistic Regression
+- Decision Tree
+- Random Forest
+- Neural Network
 
-## Output
+**Best model:** Logistic Regression (94% accuracy)
 
-- Dropout risk: Low / Medium / High
+## Data
 
-## Technologies
+- Training: `data/student_dropout_training_data.csv`
+- Testing: `data/student_dropout_testing_data.csv` (synthetic, generated)
+- Generator: `data_generator.py` (enforces grade floor 9.5, course constraints, realistic correlations)
 
-- Python
-- pandas
-- NumPy
-- scikit-learn
-- Streamlit
-- joblib
-- matplotlib
+## Evaluation
 
-## How to Run
+- 5-fold cross-validation per algorithm
+- Holdout test metrics (accuracy, precision, recall, F1)
+- Confusion matrix, ROC curves, calibration plots
+- Results: `models/`
 
-Create a virtual environment:
+## Setup & Run Instructions
+
+**1. Create and activate virtual environment:**
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
+```
 
+**2. Generate synthetic testing data:**
+
+```bash
+python data_generator.py
+```
+
+**3. Train and compare models:**
+
+```bash
+python train_model.py
+```
+
+**4. Run post-training evaluation:**
+
+```bash
+python evaluate_model.py
+```
+
+**5. Run interactive web app demo:**
+
+```bash
 streamlit run app.py
+```

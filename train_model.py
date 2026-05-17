@@ -2,8 +2,9 @@ import os
 import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.pipeline import Pipeline
@@ -20,7 +21,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 
 
-DATA_PATH = "data/student_dropout_data.csv"
+DATA_PATH = "data/student_dropout_training_data.csv"
 MODEL_PATH = "models/dropout_model.pkl"
 
 
@@ -76,6 +77,7 @@ def main():
     best_name = None
     best_accuracy = 0
     results = []
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
     print("\nMODEL COMPARISON\n")
 
@@ -87,17 +89,32 @@ def main():
             ]
         )
 
+        cv_scores = cross_val_score(
+            pipeline,
+            X,
+            y,
+            cv=cv,
+            scoring="accuracy",
+            n_jobs=-1,
+        )
+
         pipeline.fit(X_train, y_train)
         predictions = pipeline.predict(X_test)
         accuracy = accuracy_score(y_test, predictions)
 
         print(f"{name}")
+        print(
+            "5-fold CV Accuracy: "
+            f"{np.mean(cv_scores):.3f} +/- {np.std(cv_scores):.3f}"
+        )
         print(f"Accuracy: {accuracy:.3f}")
         print(classification_report(y_test, predictions, zero_division=0))
         print("-" * 50)
 
         results.append({
             "model": name,
+            "cv_accuracy_mean": round(float(np.mean(cv_scores)), 3),
+            "cv_accuracy_std": round(float(np.std(cv_scores)), 3),
             "accuracy": round(accuracy, 3),
         })
 

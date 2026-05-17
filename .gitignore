@@ -2,7 +2,15 @@ venv/
 __pycache__/
 *.pyc
 
-
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
+!.streamlit/secrets.toml
 
 .DS_Store
+
+# Ignore model artifacts (ignore contents, keep the folder)
+models/*
+!models/.gitkeep
+
+# Ignore generated testing CSV but keep training CSV in repo
+data/student_dropout_testing_data.csv

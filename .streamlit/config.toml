@@ -1,0 +1,11 @@
+[theme]
+primaryColor = "#a04329"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#ffffff"
+font = "sans serif"
+
+# Alert colors
+successColor = "#58854e"
+warningColor = "#e6c260"
+errorColor = "#912431"

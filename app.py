@@ -86,7 +86,9 @@ model = load_model()
 
 st.subheader("Student Information")
 
-high_school_average = st.slider("High school average (0–20)", 0.0, 20.0, 14.0, 0.1)
+MIN_GRADE = 9.5
+
+high_school_average = st.slider("High school average (0–20)", MIN_GRADE, 20.0, 14.0, 0.1)
 
 district_of_origin = st.selectbox(
     "Region of origin",
@@ -94,15 +96,20 @@ district_of_origin = st.selectbox(
     index=DISTRICTS.index("Porto"),
 )
 
-average_grade = st.slider("Average grade (0–20)", 0.0, 20.0, 12.0, 0.1)
+average_grade = st.slider("Average grade (0–20)", MIN_GRADE, 20.0, 12.0, 0.1)
 
 attendance = st.slider("Attendance (%)", 0, 100, 75)
 
 courses_per_semester = st.slider("Courses per semester", 1, 10, 6)
 failed_courses = st.slider("Failed courses", 0, courses_per_semester, 2)
 completed_courses = st.slider(
-    "Completed courses", 0, courses_per_semester - failed_courses, 4
+    "Completed courses", 0, max(0, courses_per_semester - failed_courses), 4
 )
+
+# Enforce constraint: failed + completed <= courses_per_semester
+if failed_courses + completed_courses > courses_per_semester:
+    completed_courses = courses_per_semester - failed_courses
+    st.warning(f"Adjusted completed courses to {completed_courses} to satisfy constraint.")
 
 assignment_completion = st.slider("Assignment completion (%)", 0, 100, 70)
 
@@ -136,10 +143,17 @@ if predict_clicked:
         probability_map = dict(zip(classes, probabilities))
         confidence = probability_map[prediction]
 
+    color_map = {
+        "Low": "#58854e",
+        "Medium": "#e6c260",
+        "High": "#912431"
+    }
+    border_color = color_map.get(prediction, "#a04329")
+
     st.markdown(
         f"""
-        <div style="padding: 28px 24px; margin-top: 14px; margin-bottom: 12px; border-radius: 12px; background-color: transparent; border-left: 5px solid #ae3f32;">
-            <div style="color: #a04329; margin: 0; font-size: 32px; font-weight: 700;">Predicted Risk: {prediction}</div>
+        <div style="padding: 28px 24px; margin-top: 14px; margin-bottom: 12px; border-radius: 12px; background-color: transparent; border-left: 5px solid {border_color};">
+            <div style="color: {border_color}; margin: 0; font-size: 32px; font-weight: 700;">Predicted Risk: {prediction}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -147,6 +161,34 @@ if predict_clicked:
 
     if confidence is not None:
         st.write(f"Model confidence: **{confidence:.2%}**")
+
+    if prediction == "Low":
+        st.markdown(
+            """
+            <div style="padding: 12px 16px; margin: 16px 0; border-radius: 4px; background-color: rgba(88, 133, 78, 0.15); border-left: 4px solid #58854e;">
+                <span style="color: #58854e; font-weight: 500;">The student appears to be progressing normally.</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    elif prediction == "Medium":
+        st.markdown(
+            """
+            <div style="padding: 12px 16px; margin: 16px 0; border-radius: 4px; background-color: rgba(230, 194, 96, 0.15); border-left: 4px solid #e6c260;">
+                <span style="color: #e6c260; font-weight: 500;">The student may benefit from academic monitoring or mentoring.</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+            <div style="padding: 12px 16px; margin: 16px 0; border-radius: 4px; background-color: rgba(145, 36, 49, 0.15); border-left: 4px solid #912431;">
+                <span style="color: #912431; font-weight: 500;">The student should be prioritized for early academic intervention.</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     if probability_map:
         st.subheader("Risk Probabilities")
@@ -156,14 +198,7 @@ if predict_clicked:
         })
         st.table(probability_df)
 
-    st.subheader("Suggested Interpretation")
 
-    if prediction == "Low":
-        st.success("The student appears to be progressing normally.")
-    elif prediction == "Medium":
-        st.warning("The student may benefit from academic monitoring or mentoring.")
-    else:
-        st.error("The student should be prioritized for early academic intervention.")
 
     st.subheader("Input Summary")
     st.table(input_data)
