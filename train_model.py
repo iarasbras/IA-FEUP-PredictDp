@@ -35,6 +35,7 @@ def main():
     numeric_features = [
         "attendance_percentage",
         "average_grade",
+        "courses_per_semester",
         "failed_courses",
         "completed_courses",
         "assignment_completion_percentage",

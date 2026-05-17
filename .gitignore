@@ -2,10 +2,6 @@ venv/
 __pycache__/
 *.pyc
 
-data/*.csv
-models/*.pkl
-models/*.png
-models/
 
 .streamlit/
 

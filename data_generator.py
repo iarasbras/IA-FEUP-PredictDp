@@ -8,8 +8,11 @@ def generate_student_data(n_samples: int = 1000, random_state: int = 42) -> pd.D
 
     attendance = np.random.normal(75, 15, n_samples).clip(0, 100)
     average_grade = np.random.normal(12, 4, n_samples).clip(0, 20)
-    failed_courses = np.random.poisson(2, n_samples).clip(0, 10)
-    completed_courses = np.random.poisson(6, n_samples).clip(0, 12)
+    courses_per_semester = np.random.randint(1, 11, n_samples)
+    failed_courses = np.random.binomial(courses_per_semester, 0.2)
+    completed_courses = np.random.binomial(
+        courses_per_semester - failed_courses, 0.8
+    )
     assignment_completion = np.random.normal(70, 20, n_samples).clip(0, 100)
     high_school_average = np.random.normal(14, 3, n_samples).clip(0, 20)
     platform_logins = np.random.poisson(5, n_samples).clip(0, 20)
@@ -119,6 +122,7 @@ def generate_student_data(n_samples: int = 1000, random_state: int = 42) -> pd.D
     data = pd.DataFrame({
         "attendance_percentage": attendance.round(2),
         "average_grade": average_grade.round(2),
+        "courses_per_semester": courses_per_semester,
         "failed_courses": failed_courses,
         "completed_courses": completed_courses,
         "assignment_completion_percentage": assignment_completion.round(2),
