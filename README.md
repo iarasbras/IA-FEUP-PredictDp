@@ -20,7 +20,7 @@ Supervised multiclass classifier comparing 4 algorithms:
 
 - Training: `data/student_dropout_training_data.csv`
 - Testing: `data/student_dropout_testing_data.csv` (synthetic, generated)
-- Generator: `data_generator.py` (enforces grade floor 9.5, course constraints, realistic correlations)
+- Generator: `data/data_generator.py` (enforces grade floor 9.5, course constraints, realistic correlations)
 
 ## Evaluation
 
@@ -42,23 +42,23 @@ pip install -r requirements.txt
 **2. Generate synthetic testing data:**
 
 ```bash
-python data_generator.py
+python data/data_generator.py
 ```
 
 **3. Train and compare models:**
 
 ```bash
-python train_model.py
+python models/train_model.py
 ```
 
 **4. Run post-training evaluation:**
 
 ```bash
-python evaluate_model.py
+python models/evaluate_model.py
 ```
 
 **5. Run interactive web app demo:**
 
 ```bash
-streamlit run app.py
+streamlit run app/app.py
 ```

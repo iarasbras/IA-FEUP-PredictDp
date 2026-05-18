@@ -11,6 +11,7 @@ __pycache__/
 # Ignore model artifacts (ignore contents, keep the folder)
 models/*
 !models/.gitkeep
+!models/*.py
 
 # Ignore generated testing CSV but keep training CSV in repo
 data/student_dropout_testing_data.csv
