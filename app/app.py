@@ -5,6 +5,24 @@ import streamlit as st
 
 MODEL_PATH = "models/dropout_model.pkl"
 
+RISK_COLORS = {
+    "Low": "#58854e",
+    "Medium": "#e6c260",
+    "High": "#912431",
+}
+
+FEATURE_COLUMNS = [
+    "high_school_average",
+    "district_of_origin",
+    "average_grade",
+    "attendance_percentage",
+    "courses_per_semester",
+    "failed_courses",
+    "completed_courses",
+    "assignment_completion_percentage",
+    "platform_logins_per_week",
+]
+
 
 DISTRICTS = [
     "Açores",
@@ -35,6 +53,11 @@ DISTRICTS = [
 @st.cache_resource
 def load_model():
     return joblib.load(MODEL_PATH)
+
+
+def style_risk_column(value: str) -> str:
+    color = RISK_COLORS.get(value, "#a04329")
+    return f"color: {color}; font-weight: 700"
 
 
 st.set_page_config(
@@ -143,12 +166,7 @@ if predict_clicked:
         probability_map = dict(zip(classes, probabilities))
         confidence = probability_map[prediction]
 
-    color_map = {
-        "Low": "#58854e",
-        "Medium": "#e6c260",
-        "High": "#912431"
-    }
-    border_color = color_map.get(prediction, "#a04329")
+    border_color = RISK_COLORS.get(prediction, "#a04329")
 
     st.markdown(
         f"""
@@ -201,4 +219,57 @@ if predict_clicked:
 
 
     st.subheader("Input Summary")
-    st.table(input_data)
+    input_numeric_columns = input_data.select_dtypes(include=["number"]).columns
+    input_summary = input_data.style.format({column: "{:.2f}" for column in input_numeric_columns})
+    st.dataframe(input_summary, use_container_width=True, hide_index=True)
+
+
+st.divider()
+st.subheader("Batch Prediction From CSV")
+st.write(
+    "Upload a CSV file with student data to predict dropout risk for multiple students at once."
+)
+
+uploaded_csv = st.file_uploader("Upload CSV", type=["csv"])
+
+if uploaded_csv is not None:
+    try:
+        uploaded_df = pd.read_csv(uploaded_csv)
+    except Exception as exc:
+        st.error(f"Could not read the CSV file: {exc}")
+    else:
+        missing_columns = [column for column in FEATURE_COLUMNS if column not in uploaded_df.columns]
+
+        if missing_columns:
+            st.error(
+                "The uploaded CSV is missing required columns: "
+                + ", ".join(missing_columns)
+            )
+        else:
+            batch_predictions = model.predict(uploaded_df[FEATURE_COLUMNS])
+            results_df = uploaded_df.copy()
+            results_df["risk"] = batch_predictions
+
+            ordered_columns = []
+            if "student_number" in results_df.columns:
+                ordered_columns.append("student_number")
+
+            ordered_columns.append("risk")
+
+            for column in results_df.columns:
+                if column not in ordered_columns:
+                    ordered_columns.append(column)
+
+            results_df = results_df[ordered_columns]
+            numeric_columns = results_df.select_dtypes(include=["number"]).columns
+            formatters = {column: "{:.2f}" for column in numeric_columns if column != "student_number"}
+            if "student_number" in results_df.columns:
+                formatters["student_number"] = "{:.0f}"
+            styled_results = (
+                results_df.style
+                .map(style_risk_column, subset=["risk"])
+                .format(formatters)
+            )
+
+            # st.success(f"Predictions generated for {len(results_df)} students.")
+            st.dataframe(styled_results, use_container_width=True, hide_index=True)

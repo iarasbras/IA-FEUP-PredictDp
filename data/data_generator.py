@@ -127,13 +127,30 @@ PROFILE_SETTINGS = {
     },
 }
 
-
 def _sigmoid(value: np.ndarray) -> np.ndarray:
     return 1 / (1 + np.exp(-value))
 
 
-def generate_student_data(n_samples: int = 1000, random_state: int = 42) -> pd.DataFrame:
+def _generate_student_identifiers(rng: np.random.Generator, n_samples: int):
+    start_years = rng.integers(2018, 2026, size=n_samples)
+    student_numbers = []
+    used_numbers = set()
+
+    for year in start_years:
+        while True:
+            candidate = f"{year}{rng.integers(0, 100000):05d}"
+            if candidate not in used_numbers:
+                used_numbers.add(candidate)
+                student_numbers.append(candidate)
+                break
+
+    return student_numbers
+
+
+def generate_student_data(n_samples: int = 100, random_state: int = 42) -> pd.DataFrame:
     rng = np.random.default_rng(random_state)
+
+    student_numbers = _generate_student_identifiers(rng, n_samples)
 
     profiles = rng.choice(PROFILE_LABELS, size=n_samples, p=PROFILE_PROBABILITIES)
 
@@ -258,14 +275,15 @@ def generate_student_data(n_samples: int = 1000, random_state: int = 42) -> pd.D
     )
 
     data = pd.DataFrame({
-        "attendance_percentage": attendance.round(2),
+        "student_number": student_numbers,
+        "high_school_average": high_school_average.round(2),
+        "district_of_origin": districts,
         "average_grade": average_grade.round(2),
+        "attendance_percentage": attendance.round(2),
         "courses_per_semester": courses_per_semester,
         "failed_courses": failed_courses,
         "completed_courses": completed_courses,
         "assignment_completion_percentage": assignment_completion.round(2),
-        "district_of_origin": districts,
-        "high_school_average": high_school_average.round(2),
         "platform_logins_per_week": platform_logins,
         "dropout_risk": dropout_risk,
     })
