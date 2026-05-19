@@ -1,5 +1,5 @@
 model,cv_accuracy_mean,cv_accuracy_std,accuracy
 Logistic Regression,0.924,0.017,0.94
-Decision Tree,0.88,0.025,0.88
-Random Forest,0.922,0.016,0.895
+Decision Tree,0.891,0.015,0.875
+Random Forest,0.924,0.009,0.905
 Neural Network,0.915,0.005,0.92

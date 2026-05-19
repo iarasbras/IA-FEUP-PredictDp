@@ -82,7 +82,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Student Dropout Predictor")
+st.title("Student Dropout Predictor", anchor=False)
 
 st.caption(
     "Machine Learning Early-Warning System for Academic Retention"
@@ -102,7 +102,7 @@ st.markdown(
 
 model = load_model()
 
-st.subheader("Student Information")
+st.subheader("Student Information", anchor=False)
 
 MIN_GRADE = 9.5
 
@@ -110,12 +110,12 @@ high_school_average = st.slider(
     "High school average (0–20)",
     MIN_GRADE,
     20.0,
-    14.0,
+    16.0,
     0.1,
 )
 
 district_of_origin = st.selectbox(
-    "District of origin",
+    "Region of origin",
     DISTRICTS,
     index=DISTRICTS.index("Porto"),
 )
@@ -124,9 +124,140 @@ average_grade = st.slider(
     "Current average grade (0–20)",
     MIN_GRADE,
     20.0,
-    12.0,
+    14.0,
     0.1,
 )
+
+# failed_courses + completed_courses = courses_per_semester
+DEFAULT_COURSES = 6
+
+if "courses_per_semester" not in st.session_state:
+    st.session_state["courses_per_semester"] = DEFAULT_COURSES
+if "failed_courses" not in st.session_state:
+    st.session_state["failed_courses"] = 2
+if "completed_courses" not in st.session_state:
+    st.session_state["completed_courses"] = 4
+if "course_warning_msg" not in st.session_state:
+    st.session_state["course_warning_msg"] = ""
+
+def _on_courses_change():
+    cs = st.session_state["courses_per_semester"]
+    # clamp failed to not exceed total courses
+    adjusted = False
+    # ensure failed_courses is within 0..cs
+    fc = st.session_state.get("failed_courses", 0)
+    if fc > cs:
+        fc = cs
+        st.session_state["failed_courses"] = fc
+        adjusted = True
+
+    # set completed so the sum equals courses_per_semester
+    new_cc = cs - fc
+    if new_cc < 0:
+        new_cc = 0
+    if st.session_state.get("completed_courses") != new_cc:
+        st.session_state["completed_courses"] = new_cc
+        adjusted = True
+
+    st.session_state["course_warning_msg"] = (
+        "Adjusted course counts so failed + completed = courses per semester."
+        if adjusted
+        else ""
+    )
+
+def _on_failed_change():
+    cs = st.session_state.get("courses_per_semester", DEFAULT_COURSES)
+    fc = st.session_state["failed_courses"]
+    adjusted = False
+    # clamp failed to 0..cs
+    if fc < 0:
+        fc = 0
+    if fc > cs:
+        fc = cs
+        st.session_state["failed_courses"] = fc
+        adjusted = True
+
+    # set completed so sum equals total
+    new_cc = cs - fc
+    if new_cc < 0:
+        new_cc = 0
+    if st.session_state.get("completed_courses") != new_cc:
+        st.session_state["completed_courses"] = new_cc
+        adjusted = True
+
+    st.session_state["course_warning_msg"] = (
+        "Adjusted course counts so failed + completed = courses per semester."
+        if adjusted
+        else ""
+    )
+
+def _on_completed_change():
+    cs = st.session_state.get("courses_per_semester", DEFAULT_COURSES)
+    cc = st.session_state["completed_courses"]
+    adjusted = False
+    # clamp completed to 0..cs
+    if cc < 0:
+        cc = 0
+    if cc > cs:
+        cc = cs
+        st.session_state["completed_courses"] = cc
+        adjusted = True
+
+    # set failed so sum equals total
+    new_fc = cs - cc
+    if new_fc < 0:
+        new_fc = 0
+    if st.session_state.get("failed_courses") != new_fc:
+        st.session_state["failed_courses"] = new_fc
+        adjusted = True
+
+    st.session_state["course_warning_msg"] = (
+        "Adjusted course counts so failed + completed = courses per semester."
+        if adjusted
+        else ""
+    )
+
+courses_per_semester = st.slider(
+    "Courses per semester",
+    1,
+    10,
+    st.session_state["courses_per_semester"],
+    key="courses_per_semester",
+    on_change=_on_courses_change,
+)
+
+failed_courses = st.slider(
+    "Failed courses",
+    0,
+    st.session_state["courses_per_semester"],
+    st.session_state["failed_courses"],
+    key="failed_courses",
+    on_change=_on_failed_change,
+)
+
+max_completed = max(0, st.session_state["courses_per_semester"] - st.session_state.get("failed_courses", 0))
+if max_completed <= 0:
+    # Show a visual slider (0..1) but force/display 0 when no remaining slots.
+    completed_courses = st.slider(
+        "Completed courses",
+        0,
+        1,
+        0,
+        key="completed_courses",
+        on_change=_on_completed_change,
+    )
+else:
+    completed_courses = st.slider(
+        "Completed courses",
+        0,
+        max_completed,
+        st.session_state.get("completed_courses", 0),
+        key="completed_courses",
+        on_change=_on_completed_change,
+    )
+
+if st.session_state.get("course_warning_msg"):
+    st.warning(st.session_state.get("course_warning_msg"))
 
 attendance = st.slider(
     "Attendance (%)",
@@ -134,30 +265,6 @@ attendance = st.slider(
     100,
     75,
 )
-
-courses_per_semester = st.slider(
-    "Courses per semester",
-    1,
-    10,
-    6,
-)
-
-failed_courses = st.slider(
-    "Failed courses",
-    0,
-    courses_per_semester,
-    2,
-)
-
-completed_courses = st.slider(
-    "Completed courses",
-    0,
-    max(0, courses_per_semester - failed_courses),
-    4,
-)
-
-if failed_courses + completed_courses > courses_per_semester:
-    completed_courses = courses_per_semester - failed_courses
 
 assignment_completion = st.slider(
     "Assignment completion (%)",
@@ -253,7 +360,6 @@ if predict_clicked:
                     font-weight: 500;
                 ">
                     The student currently shows stable academic engagement.
-                    Regular monitoring is recommended.
                 </span>
             </div>
             """,
@@ -308,7 +414,7 @@ if predict_clicked:
 
     if probability_map:
 
-        st.subheader("Risk Probabilities")
+        st.subheader("Risk Probabilities", anchor=False)
 
         probability_df = pd.DataFrame({
             "Risk Level": list(probability_map.keys()),
@@ -320,7 +426,7 @@ if predict_clicked:
 
         st.table(probability_df)
 
-    st.subheader("Input Summary")
+    st.subheader("Input Summary", anchor=False)
 
     input_numeric_columns = input_data.select_dtypes(
         include=["number"]
@@ -339,7 +445,7 @@ if predict_clicked:
 
 st.divider()
 
-st.subheader("Batch Prediction From CSV")
+st.subheader("Batch Prediction From CSV", anchor=False)
 
 st.write(
     "Upload a CSV file containing student records to generate dropout risk predictions for multiple students simultaneously."
