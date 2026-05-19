@@ -55,8 +55,22 @@ def main():
 
     models = {
         "Logistic Regression": LogisticRegression(max_iter=1000),
-        "Decision Tree": DecisionTreeClassifier(random_state=42, max_depth=5),
-        "Random Forest": RandomForestClassifier(random_state=42, n_estimators=100),
+
+        "Decision Tree": DecisionTreeClassifier(
+            random_state=42,
+            max_depth=6,
+            min_samples_split=8,
+            min_samples_leaf=4,
+        ),
+
+        "Random Forest": RandomForestClassifier(
+            random_state=42,
+            n_estimators=120,
+            max_depth=8,
+            min_samples_split=6,
+            min_samples_leaf=3,
+        ),
+
         "Neural Network": MLPClassifier(
             hidden_layer_sizes=(16, 8),
             activation="relu",
@@ -77,11 +91,17 @@ def main():
     best_name = None
     best_accuracy = 0
     results = []
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    cv = StratifiedKFold(
+        n_splits=5,
+        shuffle=True,
+        random_state=42,
+    )
 
     print("\nMODEL COMPARISON\n")
 
     for name, model in models.items():
+
         pipeline = Pipeline(
             steps=[
                 ("preprocessor", preprocessor),
@@ -99,16 +119,28 @@ def main():
         )
 
         pipeline.fit(X_train, y_train)
+
         predictions = pipeline.predict(X_test)
+
         accuracy = accuracy_score(y_test, predictions)
 
         print(f"{name}")
+
         print(
             "5-fold CV Accuracy: "
             f"{np.mean(cv_scores):.3f} +/- {np.std(cv_scores):.3f}"
         )
+
         print(f"Accuracy: {accuracy:.3f}")
-        print(classification_report(y_test, predictions, zero_division=0))
+
+        print(
+            classification_report(
+                y_test,
+                predictions,
+                zero_division=0,
+            )
+        )
+
         print("-" * 50)
 
         results.append({
@@ -126,7 +158,11 @@ def main():
     joblib.dump(best_model, MODEL_PATH)
 
     results_df = pd.DataFrame(results)
-    results_df.to_csv("models/model_results.csv", index=False)
+
+    results_df.to_csv(
+        "models/model_results.csv",
+        index=False,
+    )
 
     print(f"\nBest model: {best_name}")
     print(f"Best accuracy: {best_accuracy:.3f}")
@@ -134,7 +170,12 @@ def main():
     print("Saved model comparison to: models/model_results.csv")
 
     final_predictions = best_model.predict(X_test)
-    cm = confusion_matrix(y_test, final_predictions, labels=["Low", "Medium", "High"])
+
+    cm = confusion_matrix(
+        y_test,
+        final_predictions,
+        labels=["Low", "Medium", "High"],
+    )
 
     display = ConfusionMatrixDisplay(
         confusion_matrix=cm,
@@ -142,9 +183,47 @@ def main():
     )
 
     display.plot()
+
     plt.title(f"Confusion Matrix - {best_name}")
+
     plt.tight_layout()
+
     plt.savefig("models/confusion_matrix.png")
+
+    try:
+        if hasattr(best_model.named_steps["model"], "coef_"):
+
+            feature_names = (
+                numeric_features
+                + list(
+                    best_model.named_steps["preprocessor"]
+                    .named_transformers_["cat"]
+                    .get_feature_names_out(categorical_features)
+                )
+            )
+
+            coefficients = best_model.named_steps["model"].coef_[0]
+
+            importance_df = pd.DataFrame({
+                "feature": feature_names,
+                "importance": np.abs(coefficients),
+            }).sort_values(
+                by="importance",
+                ascending=False,
+            )
+
+            importance_df.to_csv(
+                "models/feature_importance.csv",
+                index=False,
+            )
+
+            print(
+                "Saved feature importance to: "
+                "models/feature_importance.csv"
+            )
+
+    except Exception:
+        pass
 
     print("Saved confusion matrix to: models/confusion_matrix.png")
 

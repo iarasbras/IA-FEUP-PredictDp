@@ -76,7 +76,7 @@ DISTRICT_DISTANCE = {
 
 MIN_GRADE = 9.5
 
-PROFILE_PROBABILITIES = [0.35, 0.45, 0.20]
+PROFILE_PROBABILITIES = [0.30, 0.45, 0.25]
 PROFILE_LABELS = ["strong", "average", "at_risk"]
 
 PROFILE_SETTINGS = {
@@ -263,7 +263,7 @@ def generate_student_data(n_samples: int = 100, random_state: int = 42) -> pd.Da
         + (100 - assignment_completion) * 0.08
         + district_distance * np.where(attendance < 75, 0.55, 0.18)
         - strong_attendance_bonus * 0.25
-        + rng.normal(0, 3.0, n_samples)
+        + rng.normal(0, 5.0, n_samples)
     )
 
     risk_score = np.clip(risk_score, 0, None)

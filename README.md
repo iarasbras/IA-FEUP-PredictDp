@@ -14,7 +14,7 @@ Supervised multiclass classifier comparing 4 algorithms:
 - Random Forest
 - Neural Network
 
-**Best model:** Logistic Regression (94% accuracy)
+The training pipeline compares Logistic Regression, Decision Tree, Random Forest, and Neural Network models. The best-performing model is selected automatically and saved as `models/dropout_model.pkl`.
 
 ## Data
 
