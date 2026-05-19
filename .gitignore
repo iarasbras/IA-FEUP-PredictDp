@@ -15,3 +15,4 @@ models/*
 
 # Ignore generated testing CSV but keep training CSV in repo
 data/student_dropout_testing_data.csv
+data/student_dropout_testing_labels.csv

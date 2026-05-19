@@ -160,7 +160,7 @@ def _on_courses_change():
         adjusted = True
 
     st.session_state["course_warning_msg"] = (
-        "Adjusted course counts so failed + completed = courses per semester."
+        "Adjusted course counts: failed courses + completed courses must equal courses per semester."
         if adjusted
         else ""
     )
@@ -257,7 +257,15 @@ else:
     )
 
 if st.session_state.get("course_warning_msg"):
-    st.warning(st.session_state.get("course_warning_msg"))
+    msg = st.session_state.get("course_warning_msg")
+    st.markdown(
+        f"""
+        <div style="padding:10px; margin:10px 0; border-radius:4px; background-color: rgba(230, 194, 96, 0.12); border-left: 4px solid {RISK_COLORS['Medium']};">
+            <span style="color: {RISK_COLORS['Medium']}; font-weight: 600;">{msg}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 attendance = st.slider(
     "Attendance (%)",

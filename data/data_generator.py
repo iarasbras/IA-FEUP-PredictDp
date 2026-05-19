@@ -295,10 +295,22 @@ if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
 
     df = generate_student_data()
+    # Export features-only testing data and a separate labels sidecar.
     output_path = "data/student_dropout_testing_data.csv"
-    df.to_csv(output_path, index=False)
+    labels_path = "data/student_dropout_testing_labels.csv"
+
+    # Write features-only CSV (drop target)
+    features_df = df.drop(columns=["dropout_risk"]) if "dropout_risk" in df.columns else df.copy()
+    features_df.to_csv(output_path, index=False)
+
+    # Write labels sidecar with student_number and dropout_risk
+    if "dropout_risk" in df.columns:
+        df[["student_number", "dropout_risk"]].to_csv(labels_path, index=False)
 
     print(f"Dataset created successfully: {output_path}")
+    if os.path.exists(labels_path):
+        print(f"Labels created successfully: {labels_path}")
     print(df.head())
-    print("\nRisk distribution:")
-    print(df["dropout_risk"].value_counts())
+    if "dropout_risk" in df.columns:
+        print("\nRisk distribution:")
+        print(df["dropout_risk"].value_counts())

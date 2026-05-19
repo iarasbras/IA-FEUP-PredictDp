@@ -1,4 +1,5 @@
 import json
+import os
 import numpy as np
 import pandas as pd
 import joblib
@@ -20,8 +21,37 @@ def main():
     model = joblib.load(MODEL_PATH)
     df = pd.read_csv(TEST_PATH)
 
-    X = df.drop(columns=["dropout_risk"])
-    y = df["dropout_risk"]
+    labels_path = "data/student_dropout_testing_labels.csv"
+
+    # If the test file already contains the target, use it.
+    if "dropout_risk" in df.columns:
+        y = df["dropout_risk"]
+        X = df.drop(columns=[c for c in ["dropout_risk"] if c in df.columns])
+    else:
+        # Otherwise try to read the labels sidecar and join on student_number
+        if os.path.exists(labels_path):
+            labels = pd.read_csv(labels_path)
+            if "student_number" not in df.columns or "student_number" not in labels.columns:
+                raise ValueError(
+                    "Both test data and labels sidecar must contain 'student_number' to join."
+                )
+
+            merged = df.merge(labels, on="student_number", how="left")
+
+            if "dropout_risk" not in merged.columns:
+                raise ValueError(f"Labels file {labels_path} does not contain 'dropout_risk'.")
+
+            # Drop rows where label is missing and warn if any were dropped
+            missing_labels = merged["dropout_risk"].isnull().sum()
+            if missing_labels > 0:
+                print(f"Warning: {missing_labels} rows have no label after joining; these will be dropped.")
+            merged = merged[~merged["dropout_risk"].isnull()].copy()
+
+            y = merged["dropout_risk"]
+            X = merged.drop(columns=[c for c in ["dropout_risk"] if c in merged.columns])
+        else:
+            raise FileNotFoundError(
+                f"No labels found: neither 'dropout_risk' in {TEST_PATH} nor labels sidecar at {labels_path}.")
 
     y_pred = model.predict(X)
     y_proba = None
