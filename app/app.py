@@ -46,6 +46,10 @@ DISTRICTS = [
     "Viseu",
 ]
 
+DEFAULT_COURSES = 6
+DEFAULT_FAILED = 2
+DEFAULT_COMPLETED = 4
+
 
 @st.cache_resource
 def load_model():
@@ -57,36 +61,134 @@ def style_risk_column(value: str) -> str:
     return f"color: {color}; font-weight: 700"
 
 
+def initialize_course_state():
+    if "courses_per_semester" not in st.session_state:
+        st.session_state["courses_per_semester"] = DEFAULT_COURSES
+
+    if "failed_courses" not in st.session_state:
+        st.session_state["failed_courses"] = DEFAULT_FAILED
+
+    if "completed_courses" not in st.session_state:
+        st.session_state["completed_courses"] = DEFAULT_COMPLETED
+
+    if "course_warning_msg" not in st.session_state:
+        st.session_state["course_warning_msg"] = ""
+
+    validate_course_values(show_warning=False)
+
+
+def validate_course_values(show_warning: bool = True):
+    courses = st.session_state.get("courses_per_semester", DEFAULT_COURSES)
+    failed = st.session_state.get("failed_courses", DEFAULT_FAILED)
+    completed = st.session_state.get("completed_courses", DEFAULT_COMPLETED)
+
+    adjusted = False
+
+    if failed > courses:
+        failed = courses
+        st.session_state["failed_courses"] = failed
+        adjusted = True
+
+    if completed > courses:
+        completed = courses
+        st.session_state["completed_courses"] = completed
+        adjusted = True
+
+    if failed + completed > courses:
+        completed = max(0, courses - failed)
+        st.session_state["completed_courses"] = completed
+        adjusted = True
+
+    st.session_state["course_warning_msg"] = (
+        "Adjusted course values so failed + completed does not exceed total courses."
+        if adjusted and show_warning
+        else ""
+    )
+
+
+def get_risk_explanations(input_row: dict) -> list[str]:
+    reasons = []
+
+    if input_row["attendance_percentage"] < 70:
+        reasons.append("Low attendance may indicate academic disengagement.")
+
+    if input_row["average_grade"] < 12:
+        reasons.append("The current average grade is close to the minimum passing threshold.")
+
+    if input_row["failed_courses"] >= 3:
+        reasons.append("Several failed courses increase the probability of academic delay.")
+
+    if input_row["assignment_completion_percentage"] < 65:
+        reasons.append("Low assignment completion suggests inconsistent academic participation.")
+
+    if input_row["platform_logins_per_week"] < 5:
+        reasons.append("Low Moodle activity may indicate reduced engagement with course materials.")
+
+    if input_row["completed_courses"] < max(1, input_row["courses_per_semester"] // 2):
+        reasons.append("The number of completed courses is low compared with the expected workload.")
+
+    if input_row["district_of_origin"] not in [
+        "Porto",
+        "Aveiro",
+        "Braga",
+        "Viana do Castelo",
+        "Vila Real",
+    ]:
+        reasons.append("The student comes from outside the closest northern districts, which may affect adaptation.")
+
+    if not reasons:
+        reasons.append("No critical academic risk indicators were detected.")
+
+    return reasons
+
+
+def get_recommendation(prediction: str) -> str:
+    if prediction == "Low":
+        return "The student currently shows stable academic engagement."
+
+    if prediction == "Medium":
+        return "The student may benefit from mentoring, tutoring, or periodic academic follow-up."
+
+    return "The student should be prioritized for immediate academic intervention and support."
+
+
 st.set_page_config(
     page_title="Student Dropout Predictor",
     layout="centered",
 )
 
-st.markdown("""
-<style>
-    input[type="range"] {
-        accent-color: #a04329 !important;
-    }
+st.markdown(
+    """
+    <style>
+        input[type="range"] {
+            accent-color: #a04329 !important;
+        }
 
-    .stButton > button {
-        border: 2px solid #a04329 !important;
-        box-shadow: 0 0 0 1px rgba(174, 63, 50, 0.18),
-                    0 0 14px rgba(174, 63, 50, 0.18) !important;
-    }
+        .stButton > button {
+            border: 2px solid #a04329 !important;
+            box-shadow: 0 0 0 1px rgba(174, 63, 50, 0.18),
+                        0 0 14px rgba(174, 63, 50, 0.18) !important;
+        }
 
-    .stButton > button:hover {
-        border-color: #a04329 !important;
-        box-shadow: 0 0 0 1px rgba(174, 63, 50, 0.28),
-                    0 0 18px rgba(174, 63, 50, 0.3) !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+        .stButton > button:hover {
+            border-color: #a04329 !important;
+            box-shadow: 0 0 0 1px rgba(174, 63, 50, 0.28),
+                        0 0 18px rgba(174, 63, 50, 0.3) !important;
+        }
+
+        a[href^="#"] {
+            display: none !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+initialize_course_state()
 
 st.title("Student Dropout Predictor", anchor=False)
 
-st.caption(
-    "Machine Learning Early-Warning System for Academic Retention"
-)
+st.caption("Machine Learning Early-Warning System for Academic Retention")
 
 st.markdown(
     """
@@ -128,140 +230,46 @@ average_grade = st.slider(
     0.1,
 )
 
-# failed_courses + completed_courses = courses_per_semester
-DEFAULT_COURSES = 6
-
-if "courses_per_semester" not in st.session_state:
-    st.session_state["courses_per_semester"] = DEFAULT_COURSES
-if "failed_courses" not in st.session_state:
-    st.session_state["failed_courses"] = 2
-if "completed_courses" not in st.session_state:
-    st.session_state["completed_courses"] = 4
-if "course_warning_msg" not in st.session_state:
-    st.session_state["course_warning_msg"] = ""
-
-def _on_courses_change():
-    cs = st.session_state["courses_per_semester"]
-    # clamp failed to not exceed total courses
-    adjusted = False
-    # ensure failed_courses is within 0..cs
-    fc = st.session_state.get("failed_courses", 0)
-    if fc > cs:
-        fc = cs
-        st.session_state["failed_courses"] = fc
-        adjusted = True
-
-    # set completed so the sum equals courses_per_semester
-    new_cc = cs - fc
-    if new_cc < 0:
-        new_cc = 0
-    if st.session_state.get("completed_courses") != new_cc:
-        st.session_state["completed_courses"] = new_cc
-        adjusted = True
-
-    st.session_state["course_warning_msg"] = (
-        "Adjusted course counts: failed courses + completed courses must equal courses per semester."
-        if adjusted
-        else ""
-    )
-
-def _on_failed_change():
-    cs = st.session_state.get("courses_per_semester", DEFAULT_COURSES)
-    fc = st.session_state["failed_courses"]
-    adjusted = False
-    # clamp failed to 0..cs
-    if fc < 0:
-        fc = 0
-    if fc > cs:
-        fc = cs
-        st.session_state["failed_courses"] = fc
-        adjusted = True
-
-    # set completed so sum equals total
-    new_cc = cs - fc
-    if new_cc < 0:
-        new_cc = 0
-    if st.session_state.get("completed_courses") != new_cc:
-        st.session_state["completed_courses"] = new_cc
-        adjusted = True
-
-    st.session_state["course_warning_msg"] = (
-        "Adjusted course counts so failed + completed = courses per semester."
-        if adjusted
-        else ""
-    )
-
-def _on_completed_change():
-    cs = st.session_state.get("courses_per_semester", DEFAULT_COURSES)
-    cc = st.session_state["completed_courses"]
-    adjusted = False
-    # clamp completed to 0..cs
-    if cc < 0:
-        cc = 0
-    if cc > cs:
-        cc = cs
-        st.session_state["completed_courses"] = cc
-        adjusted = True
-
-    # set failed so sum equals total
-    new_fc = cs - cc
-    if new_fc < 0:
-        new_fc = 0
-    if st.session_state.get("failed_courses") != new_fc:
-        st.session_state["failed_courses"] = new_fc
-        adjusted = True
-
-    st.session_state["course_warning_msg"] = (
-        "Adjusted course counts so failed + completed = courses per semester."
-        if adjusted
-        else ""
-    )
-
 courses_per_semester = st.slider(
     "Courses per semester",
-    1,
-    10,
-    st.session_state["courses_per_semester"],
+    min_value=1,
+    max_value=10,
     key="courses_per_semester",
-    on_change=_on_courses_change,
+    on_change=validate_course_values,
 )
 
 failed_courses = st.slider(
     "Failed courses",
-    0,
-    st.session_state["courses_per_semester"],
-    st.session_state["failed_courses"],
+    min_value=0,
+    max_value=st.session_state["courses_per_semester"],
     key="failed_courses",
-    on_change=_on_failed_change,
+    on_change=validate_course_values,
 )
 
-max_completed = max(0, st.session_state["courses_per_semester"] - st.session_state.get("failed_courses", 0))
-if max_completed <= 0:
-    # Show a visual slider (0..1) but force/display 0 when no remaining slots.
-    completed_courses = st.slider(
-        "Completed courses",
-        0,
-        1,
-        0,
-        key="completed_courses",
-        on_change=_on_completed_change,
-    )
-else:
-    completed_courses = st.slider(
-        "Completed courses",
-        0,
-        max_completed,
-        st.session_state.get("completed_courses", 0),
-        key="completed_courses",
-        on_change=_on_completed_change,
-    )
+completed_courses = st.slider(
+    "Completed courses",
+    min_value=0,
+    max_value=st.session_state["courses_per_semester"],
+    key="completed_courses",
+    on_change=validate_course_values,
+)
 
 if st.session_state.get("course_warning_msg"):
-    msg = st.session_state.get("course_warning_msg")
     st.markdown(
         f"""
-        <div style="padding:10px; margin:10px 0; border-radius:4px; background-color: rgba(230, 194, 96, 0.12); border-left: 4px solid {RISK_COLORS['Medium']};">
-            <span style="color: {RISK_COLORS['Medium']}; font-weight: 600;">{msg}</span>
+        <div style="
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background-color: rgba(230, 194, 96, 0.12);
+            border-left: 4px solid {RISK_COLORS['Medium']};
+        ">
+            <span style="
+                color: {RISK_COLORS['Medium']};
+                font-weight: 600;
+            ">
+                {st.session_state["course_warning_msg"]}
+            </span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -287,7 +295,7 @@ platform_logins = st.number_input(
     value=5,
 )
 
-input_data = pd.DataFrame([{
+input_row = {
     "high_school_average": high_school_average,
     "district_of_origin": district_of_origin,
     "average_grade": average_grade,
@@ -297,31 +305,28 @@ input_data = pd.DataFrame([{
     "completed_courses": completed_courses,
     "assignment_completion_percentage": assignment_completion,
     "platform_logins_per_week": platform_logins,
-}])
+}
+
+input_data = pd.DataFrame([input_row])
 
 _, button_right = st.columns([3, 1])
 
 with button_right:
     predict_clicked = st.button(
-        "Predict Dropout Risk",
-        use_container_width=True,
-    )
+    "Predict Dropout Risk",
+    width="stretch",
+)
 
 if predict_clicked:
-
     prediction = model.predict(input_data)[0]
 
     confidence = None
     probability_map = {}
 
     if hasattr(model.named_steps["model"], "predict_proba"):
-
         probabilities = model.predict_proba(input_data)[0]
-
         classes = model.named_steps["model"].classes_
-
         probability_map = dict(zip(classes, probabilities))
-
         confidence = probability_map[prediction]
 
     border_color = RISK_COLORS.get(prediction, "#a04329")
@@ -352,76 +357,29 @@ if predict_clicked:
     if confidence is not None:
         st.write(f"Model confidence: **{confidence:.2%}**")
 
-    if prediction == "Low":
+    recommendation = get_recommendation(prediction)
 
-        st.markdown(
-            """
-            <div style="
-                padding: 12px 16px;
-                margin: 16px 0;
-                border-radius: 4px;
-                background-color: rgba(88, 133, 78, 0.15);
-                border-left: 4px solid #58854e;
+    st.markdown(
+        f"""
+        <div style="
+            padding: 12px 16px;
+            margin: 16px 0;
+            border-radius: 4px;
+            background-color: rgba(160, 67, 41, 0.12);
+            border-left: 4px solid {border_color};
+        ">
+            <span style="
+                color: {border_color};
+                font-weight: 500;
             ">
-                <span style="
-                    color: #58854e;
-                    font-weight: 500;
-                ">
-                    The student currently shows stable academic engagement.
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    elif prediction == "Medium":
-
-        st.markdown(
-            """
-            <div style="
-                padding: 12px 16px;
-                margin: 16px 0;
-                border-radius: 4px;
-                background-color: rgba(230, 194, 96, 0.15);
-                border-left: 4px solid #e6c260;
-            ">
-                <span style="
-                    color: #e6c260;
-                    font-weight: 500;
-                ">
-                    The student may benefit from mentoring, tutoring,
-                    or periodic academic follow-up.
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    else:
-
-        st.markdown(
-            """
-            <div style="
-                padding: 12px 16px;
-                margin: 16px 0;
-                border-radius: 4px;
-                background-color: rgba(145, 36, 49, 0.15);
-                border-left: 4px solid #912431;
-            ">
-                <span style="
-                    color: #912431;
-                    font-weight: 500;
-                ">
-                    The student should be prioritized for immediate
-                    academic intervention and support.
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                {recommendation}
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if probability_map:
-
         st.subheader("Risk Probabilities", anchor=False)
 
         probability_df = pd.DataFrame({
@@ -433,6 +391,11 @@ if predict_clicked:
         })
 
         st.table(probability_df)
+
+    st.subheader("Main Risk Factors", anchor=False)
+
+    for reason in get_risk_explanations(input_row):
+        st.write(f"- {reason}")
 
     st.subheader("Input Summary", anchor=False)
 
@@ -446,10 +409,10 @@ if predict_clicked:
     })
 
     st.dataframe(
-        input_summary,
-        use_container_width=True,
-        hide_index=True,
-    )
+    input_summary,
+    width="stretch",
+    hide_index=True,
+)
 
 st.divider()
 
@@ -465,16 +428,13 @@ uploaded_csv = st.file_uploader(
 )
 
 if uploaded_csv is not None:
-
     try:
         uploaded_df = pd.read_csv(uploaded_csv)
 
     except Exception as exc:
-
         st.error(f"Could not read the CSV file: {exc}")
 
     else:
-
         missing_columns = [
             column
             for column in FEATURE_COLUMNS
@@ -482,21 +442,41 @@ if uploaded_csv is not None:
         ]
 
         if missing_columns:
-
             st.error(
                 "The uploaded CSV is missing required columns: "
                 + ", ".join(missing_columns)
             )
 
         else:
-
             batch_predictions = model.predict(
                 uploaded_df[FEATURE_COLUMNS]
             )
 
             results_df = uploaded_df.copy()
-
             results_df["risk"] = batch_predictions
+
+            high_risk_count = (results_df["risk"] == "High").sum()
+            medium_risk_count = (results_df["risk"] == "Medium").sum()
+            low_risk_count = (results_df["risk"] == "Low").sum()
+
+            st.subheader("Cohort Overview", anchor=False)
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Students analyzed", len(results_df))
+            c2.metric("High risk", int(high_risk_count))
+            c3.metric("Medium risk", int(medium_risk_count))
+            c4.metric("Low risk", int(low_risk_count))
+
+            st.subheader("Risk Distribution", anchor=False)
+
+            risk_distribution = results_df["risk"].value_counts().reset_index()
+            risk_distribution.columns = ["Risk Level", "Students"]
+
+            st.bar_chart(
+                risk_distribution.set_index("Risk Level")
+            )
+
+            st.subheader("Predicted Student Risk Table", anchor=False)
 
             ordered_columns = []
 
@@ -531,7 +511,7 @@ if uploaded_csv is not None:
             )
 
             st.dataframe(
-                styled_results,
-                use_container_width=True,
-                hide_index=True,
-            )
+            styled_results,
+            width="stretch",
+            hide_index=True,
+        )
